@@ -1,31 +1,13 @@
-"""Roteiro que cobre os casos exigidos pelo enunciado (executado por demo.sh).
-
-Cobertura:
-- Registro de Alice e Bob.
-- Login correto + TOTP válido  -> sucesso.
-- Login com TOTP inválido       -> falha.
-- Login com senha incorreta     -> falha.
-- Alice e Bob adicionam blocos  -> criptografados corretamente.
-- Alice lê a cadeia             -> decifra seus blocos, marca os de Bob como opacos.
-- Adulteração de ciphertext     -> cliente detecta falha de integridade.
-- Adulteração de prev_hash      -> cadeia reportada como inválida.
-"""
-
 from __future__ import annotations
-
 import pyotp
-
 from client.session import Client, ClientError
 from common.constants import HOST, PORT
-
 
 def _totp(secret_b32: str) -> str:
     return pyotp.TOTP(secret_b32).now()
 
-
 def section(title: str) -> None:
     print("\n===", title, "===")
-
 
 def main() -> None:
     section("Registro")
@@ -88,12 +70,10 @@ def main() -> None:
         reply = c.list_chain()
         print(f"chain_ok={reply['chain_ok']}  error={reply.get('chain_error')}")
 
-
 def _connect() -> Client:
     c = Client(HOST, PORT)
     c.connect()
     return c
-
 
 if __name__ == "__main__":
     main()

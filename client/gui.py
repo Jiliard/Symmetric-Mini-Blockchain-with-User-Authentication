@@ -1,20 +1,10 @@
-"""Interface gráfica Tkinter para a mini-blockchain.
-
-Reaproveita `client.session.Client` e `client.crypto` — toda a criptografia continua
-acontecendo no lado do cliente.
-"""
-
 from __future__ import annotations
-
 import threading
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
-
 import pyotp
-
 from client.session import Client, ClientError
 from common.constants import HOST, PORT
-
 
 class App(tk.Tk):
     def __init__(self) -> None:
@@ -22,11 +12,8 @@ class App(tk.Tk):
         self.title("Mini-Blockchain")
         self.geometry("840x640")
         self.client: Client | None = None
-        # segredo TOTP do último usuário cadastrado nesta sessão (só para facilitar a demo)
         self._last_totp_secret: str | None = None
         self._build_ui()
-
-    # ----------------------------- layout -----------------------------------
 
     def _build_ui(self) -> None:
         top = ttk.Frame(self, padding=8)
@@ -106,7 +93,6 @@ class App(tk.Tk):
         nb = ttk.Notebook(frame)
         nb.pack(fill="both", expand=True)
 
-        # --- Adicionar bloco ---
         add = ttk.Frame(nb, padding=8)
         ttk.Label(add, text="Dados do bloco (serão cifrados com AES-GCM aqui no cliente):").pack(anchor="w")
         self.add_text = scrolledtext.ScrolledText(add, height=8, wrap="word")
@@ -114,7 +100,6 @@ class App(tk.Tk):
         ttk.Button(add, text="Adicionar bloco", command=self._on_add_block).pack(anchor="e", pady=6)
         nb.add(add, text="Adicionar bloco")
 
-        # --- Cadeia ---
         list_tab = ttk.Frame(nb, padding=8)
         btns = ttk.Frame(list_tab)
         btns.pack(fill="x")
@@ -131,7 +116,6 @@ class App(tk.Tk):
         self.tree.pack(fill="both", expand=True, pady=6)
         nb.add(list_tab, text="Cadeia")
 
-        # --- Adulterar (demo) ---
         tamper = ttk.Frame(nb, padding=8)
         ttk.Label(tamper, text="Ferramenta de demonstração: adultera um bloco no servidor.", foreground="#555").grid(
             row=0, column=0, columnspan=5, sticky="w", pady=(0, 8)
@@ -151,12 +135,11 @@ class App(tk.Tk):
         ttk.Button(tamper, text="Adulterar bloco", command=self._on_tamper).grid(row=1, column=4, padx=8)
         ttk.Label(
             tamper,
-            text="Depois de adulterar volte à aba 'Cadeia' e clique em 'Atualizar' — a validação vai falhar.",
+            text="Depois de adulterar volte à aba 'Cadeia' e clique em 'Atualizar', a validação vai falhar.",
             foreground="#555",
         ).grid(row=2, column=0, columnspan=5, sticky="w", pady=12)
-        nb.add(tamper, text="Adulterar (teste)")
+        nb.add(tamper, text="Adulterar")
 
-        # --- Auditoria ---
         logs = ttk.Frame(nb, padding=8)
         ttk.Button(logs, text="Atualizar log", command=self._on_logs).pack(anchor="w")
         self.logs_text = scrolledtext.ScrolledText(logs, height=20, wrap="none")
@@ -165,13 +148,11 @@ class App(tk.Tk):
 
         return frame
 
-    # ----------------------------- handlers ---------------------------------
-
     def _on_connect(self) -> None:
         if self.client is not None:
             try:
                 self.client.close()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
             self.client = None
             self.status_var.set("desconectado")
@@ -181,7 +162,7 @@ class App(tk.Tk):
         try:
             self.client = Client(self.host_var.get().strip(), int(self.port_var.get()))
             self.client.connect()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             messagebox.showerror("Conexão", str(exc))
             self.client = None
             return
@@ -216,8 +197,8 @@ class App(tk.Tk):
             try:
                 res = work()
                 self.after(0, lambda: _finish(res, None))
-            except Exception as exc:  # noqa: BLE001
-                self.after(0, lambda: _finish(None, exc))
+            except Exception as exc:
+                self.after(0, lambda e=exc: _finish(None, e))
 
         def _finish(result, exc):
             if button is not None:
@@ -294,7 +275,7 @@ class App(tk.Tk):
         if self.client is not None:
             try:
                 self.client.logout()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         self.who_var.set("")
         self._show_auth()
@@ -391,8 +372,6 @@ class App(tk.Tk):
         self.logs_text.delete("1.0", "end")
         self.logs_text.insert("1.0", "\n".join(lines))
 
-    # ----------------------------- view toggle ------------------------------
-
     def _show_auth(self) -> None:
         self.main_frame.pack_forget()
         self.auth_frame.pack(fill="both", expand=True)
@@ -401,10 +380,8 @@ class App(tk.Tk):
         self.auth_frame.pack_forget()
         self.main_frame.pack(fill="both", expand=True)
 
-
 def main() -> None:
     App().mainloop()
-
 
 if __name__ == "__main__":
     main()

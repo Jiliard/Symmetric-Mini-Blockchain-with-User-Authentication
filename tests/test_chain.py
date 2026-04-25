@@ -1,7 +1,5 @@
 import pytest
-
 from server.blockchain import ChainError, make_block, make_genesis, validate_chain
-
 
 def _build_chain():
     g = make_genesis()
@@ -9,10 +7,8 @@ def _build_chain():
     b2 = make_block(2, "bob", b"\x01" * 12, b"ct2", b1.hash)
     return [g, b1, b2]
 
-
 def test_validacao_cadeia_ok():
     validate_chain(_build_chain())
-
 
 def test_validacao_cadeia_prev_hash_invalido():
     chain = _build_chain()
@@ -29,7 +25,6 @@ def test_validacao_cadeia_prev_hash_invalido():
     )
     with pytest.raises(ChainError, match="prev_hash"):
         validate_chain(chain)
-
 
 def test_validacao_cadeia_hash_inconsistente():
     chain = _build_chain()

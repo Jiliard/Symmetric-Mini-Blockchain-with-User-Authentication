@@ -1,13 +1,9 @@
-"""Log de auditoria. Texto puro, sem segredos — apenas fatos observáveis."""
-
 from __future__ import annotations
-
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import Lock
 
 _lock = Lock()
-
 
 def log_event(path: Path, event: str, **fields) -> None:
     parts = [datetime.now(UTC).isoformat(), event]

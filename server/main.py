@@ -1,15 +1,4 @@
-"""Servidor TCP da mini-blockchain.
-
-O servidor:
-- guarda users.enc (verifier=auth_key, totp_secret, salt_kdf) e blockchain.enc (todos os blocos)
-  cifrados com a chave mestre derivada da senha do operador;
-- nunca recebe ou armazena a `enc_key` do usuário nem o plaintext dos blocos;
-- aplica desafio-resposta HMAC + TOTP no login;
-- revalida a cadeia inteira a cada ADDBLOCK e LIST.
-"""
-
 from __future__ import annotations
-
 import argparse
 import getpass
 import secrets
@@ -17,7 +6,6 @@ import socket
 import socketserver
 import threading
 from pathlib import Path
-
 from common.constants import (
     CHALLENGE_NONCE_SIZE,
     HOST,
@@ -37,9 +25,7 @@ CHAIN_PATH = DATA_DIR / "blockchain.enc"
 SALT_PATH = DATA_DIR / "master.salt"
 LOG_PATH = DATA_DIR / "access.log"
 
-
 class ServerState:
-    """Estado compartilhado entre as threads do servidor. Acesso serializado por lock."""
 
     def __init__(self, master_key: bytes) -> None:
         self.master_key = master_key
@@ -52,9 +38,7 @@ class ServerState:
         else:
             self.chain = [Block.from_dict(b) for b in chain_raw]
             validate_chain(self.chain)
-        # sessões: session_token (hex) -> {"username": str}
         self.sessions: dict[str, dict] = {}
-        # desafios pendentes: conn_id -> {"username": str, "nonce": bytes}
         self.pending: dict[str, dict] = {}
 
     def save_users(self) -> None:
@@ -63,11 +47,10 @@ class ServerState:
     def save_chain(self) -> None:
         save_json(self.master_key, CHAIN_PATH, [b.to_dict() for b in self.chain])
 
-
 class Handler(socketserver.BaseRequestHandler):
     state: ServerState  # injetado em make_server
 
-    def handle(self) -> None:  # noqa: C901  — dispatcher simples é mais claro inline
+    def handle(self) -> None:
         conn_id = f"{self.client_address[0]}:{self.client_address[1]}:{secrets.token_hex(4)}"
         sock: socket.socket = self.request
         try:
@@ -88,9 +71,6 @@ class Handler(socketserver.BaseRequestHandler):
         finally:
             self.state.pending.pop(conn_id, None)
 
-
-# ---------- handlers ----------
-
 def handle_register(state: ServerState, sock, conn_id, data, peer):
     username = data["username"]
     salt_kdf = b64d(data["salt_kdf"])
@@ -110,12 +90,10 @@ def handle_register(state: ServerState, sock, conn_id, data, peer):
     log_event(LOG_PATH, "register_ok", user=username, peer=peer[0])
     send_response(sock, True, {"username": username})
 
-
 def handle_hello(state: ServerState, sock, conn_id, data, peer):
     username = data["username"]
     user = state.users.get(username)
     if not user:
-        # Responde com salt falso para não revelar quem existe.
         nonce = secrets.token_bytes(CHALLENGE_NONCE_SIZE)
         state.pending[conn_id] = {"username": username, "nonce": nonce, "unknown": True}
         send_response(sock, True, {"salt_kdf": b64e(secrets.token_bytes(16)), "nonce": b64e(nonce)})
@@ -123,7 +101,6 @@ def handle_hello(state: ServerState, sock, conn_id, data, peer):
     nonce = secrets.token_bytes(CHALLENGE_NONCE_SIZE)
     state.pending[conn_id] = {"username": username, "nonce": nonce, "unknown": False}
     send_response(sock, True, {"salt_kdf": user["salt_kdf"], "nonce": b64e(nonce)})
-
 
 def handle_auth(state: ServerState, sock, conn_id, data, peer):
     pending = state.pending.pop(conn_id, None)
@@ -154,20 +131,18 @@ def handle_auth(state: ServerState, sock, conn_id, data, peer):
     log_event(LOG_PATH, "login_ok", user=username, peer=peer[0])
     send_response(sock, True, {"session_token": token, "username": username})
 
-
 def _session_user(state: ServerState, token: str) -> str:
     sess = state.sessions.get(token)
     if not sess:
         raise RuntimeError("sessao invalida")
     return sess["username"]
 
-
 def handle_addblock(state: ServerState, sock, conn_id, data, peer):
     username = _session_user(state, data["session_token"])
     iv = b64d(data["iv"])
     payload = b64d(data["payload"])
     with state.lock:
-        validate_chain(state.chain)  # pré-condição
+        validate_chain(state.chain)
         prev = state.chain[-1]
         block = make_block(
             index=prev.index + 1,
@@ -186,7 +161,6 @@ def handle_addblock(state: ServerState, sock, conn_id, data, peer):
     log_event(LOG_PATH, "addblock_ok", user=username, peer=peer[0], index=block.index)
     send_response(sock, True, {"index": block.index, "hash": b64e(block.hash)})
 
-
 def handle_list(state: ServerState, sock, conn_id, data, peer):
     username = _session_user(state, data["session_token"])
     with state.lock:
@@ -201,12 +175,7 @@ def handle_list(state: ServerState, sock, conn_id, data, peer):
         blocks = [b.to_dict() for b in state.chain]
     send_response(sock, True, {"blocks": blocks, "chain_ok": chain_ok, "chain_error": chain_err})
 
-
 def handle_tamper(state: ServerState, sock, conn_id, data, peer):
-    """Comando de DEMONSTRAÇÃO: adultera um bloco da cadeia para provar detecção.
-
-    Aceita `mode` ∈ {ciphertext, prev_hash} e `index` ≥ 1. Requer sessão ativa (qualquer usuário).
-    """
     _session_user(state, data["session_token"])
     mode = data["mode"]
     index = int(data["index"])
@@ -225,7 +194,7 @@ def handle_tamper(state: ServerState, sock, conn_id, data, peer):
                 iv=target.iv,
                 payload=bytes(flipped),
                 prev_hash=target.prev_hash,
-                hash=target.hash,  # hash antigo para simular adulteração silenciosa
+                hash=target.hash,
             )
         elif mode == "prev_hash":
             bad = bytearray(target.prev_hash)
@@ -246,7 +215,6 @@ def handle_tamper(state: ServerState, sock, conn_id, data, peer):
     log_event(LOG_PATH, "tamper_demo", peer=peer[0], index=index, mode=mode)
     send_response(sock, True, {"index": index, "mode": mode})
 
-
 def handle_logout(state: ServerState, sock, conn_id, data, peer):
     token = data.get("session_token")
     with state.lock:
@@ -254,7 +222,6 @@ def handle_logout(state: ServerState, sock, conn_id, data, peer):
     if sess:
         log_event(LOG_PATH, "logout", user=sess["username"], peer=peer[0])
     send_response(sock, True, {})
-
 
 def handle_logs(state: ServerState, sock, conn_id, data, peer):
     _session_user(state, data["session_token"])
@@ -264,7 +231,6 @@ def handle_logs(state: ServerState, sock, conn_id, data, peer):
     else:
         lines = []
     send_response(sock, True, {"lines": lines})
-
 
 DISPATCH = {
     "REGISTER": handle_register,
@@ -277,16 +243,13 @@ DISPATCH = {
     "LOGS": handle_logs,
 }
 
-
 class ThreadedServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-
 def make_server(state: ServerState, host: str, port: int) -> ThreadedServer:
     handler_cls = type("BoundHandler", (Handler,), {"state": state})
     return ThreadedServer((host, port), handler_cls)
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Servidor da mini-blockchain")
@@ -318,7 +281,6 @@ def main() -> None:
         except KeyboardInterrupt:
             print("\n[servidor] encerrando")
             log_event(LOG_PATH, "server_stop")
-
 
 if __name__ == "__main__":
     main()
