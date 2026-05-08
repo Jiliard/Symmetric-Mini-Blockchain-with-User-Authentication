@@ -1,18 +1,8 @@
-"""Sessão do cliente: socket + fluxo de registro/login + operações de bloco.
-
-O objeto `ClientSession` guarda em MEMÓRIA (nunca em disco ou global):
-- enc_key (derivada da senha) — nunca sai do processo
-- session_token (emitido pelo servidor) — autorização em operações
-- username
-"""
-
 from __future__ import annotations
-
 import base64
 import socket
 from dataclasses import dataclass
 from typing import Any
-
 from client.crypto import (
     UserKeys,
     challenge_response,
@@ -25,29 +15,18 @@ from client.crypto import (
 from common.constants import HOST, PORT, TOTP_DIGITS, TOTP_INTERVAL
 from common.protocol import ProtocolError, b64d, b64e, recv_response, send_message
 
-
 @dataclass
 class SessionInfo:
-    """Estado da sessão ativa no cliente.
-
-    `enc_key` é a **chave de sessão** do enunciado: derivada via PBKDF2 no momento do
-    login, mantida apenas na memória do processo cliente, usada para cifrar/decifrar
-    o payload dos blocos deste usuário. Nunca é escrita em disco nem trafega na rede.
-    """
-
     username: str
     token: str
     enc_key: bytes
-
     @property
     def session_key(self) -> bytes:
         """Alias semântico: mesma `enc_key`, renomeada para casar com o enunciado."""
         return self.enc_key
 
-
 class ClientError(Exception):
     pass
-
 
 class Client:
     def __init__(self, host: str = HOST, port: int = PORT) -> None:
@@ -55,8 +34,6 @@ class Client:
         self.port = port
         self.sock: socket.socket | None = None
         self.session: SessionInfo | None = None
-
-    # ---------- conexão ----------
 
     def connect(self) -> None:
         self.sock = socket.create_connection((self.host, self.port))
@@ -87,10 +64,7 @@ class Client:
             raise ClientError(err or "erro sem descricao")
         return payload
 
-    # ---------- registro ----------
-
     def register(self, username: str, password: str) -> tuple[str, str]:
-        """Gera salt, totp_secret, deriva auth_key e registra. Retorna (segredo_b32, otpauth_uri)."""
         salt = new_salt()
         totp_secret = new_totp_secret()
         keys = derive_user_keys(password, salt)
@@ -109,8 +83,6 @@ class Client:
             f"&issuer=MiniBlockchain&digits={TOTP_DIGITS}&period={TOTP_INTERVAL}"
         )
         return secret_b32, otpauth
-
-    # ---------- login ----------
 
     def login(self, username: str, password: str, totp_code: str) -> SessionInfo:
         hello = self._call("HELLO", {"username": username})
@@ -137,8 +109,6 @@ class Client:
         except (ClientError, ProtocolError):
             pass
         self.session = None
-
-    # ---------- blocos ----------
 
     def add_block(self, data: bytes) -> dict:
         if self.session is None:
@@ -185,8 +155,6 @@ class Client:
                     entry["error"] = f"falha de integridade (AES-GCM): {exc.__class__.__name__}"
             out.append(entry)
         return out
-
-    # ---------- demo ----------
 
     def tamper(self, index: int, mode: str) -> dict:
         if self.session is None:

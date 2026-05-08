@@ -1,18 +1,11 @@
-"""Testes ponta-a-ponta via TCP real (servidor em thread + cliente socket)."""
-
 from __future__ import annotations
-
 import base64
-
 import pyotp
 import pytest
-
 from client.session import Client, ClientError
-
 
 def _totp_of(secret_b32: str) -> str:
     return pyotp.TOTP(secret_b32).now()
-
 
 def test_registro_login_add_list(server):
     c = Client(server["host"], server["port"])
@@ -28,7 +21,6 @@ def test_registro_login_add_list(server):
         assert decoded[1]["plaintext"] == "minha transacao"
     finally:
         c.close()
-
 
 def test_multiusuario_isolamento(server):
     a = Client(server["host"], server["port"])
@@ -47,12 +39,11 @@ def test_multiusuario_isolamento(server):
         assert reply["chain_ok"] is True
         decoded = b.decrypt_mine(reply["blocks"])
         plaintexts = {e["index"]: e for e in decoded}
-        assert plaintexts[1]["plaintext"] is None  # bloco da alice — opaco pra bob
+        assert plaintexts[1]["plaintext"] is None
         assert plaintexts[2]["plaintext"] == "dado de bob"
     finally:
         a.close()
         b.close()
-
 
 def test_login_senha_errada(server):
     c = Client(server["host"], server["port"])
@@ -64,7 +55,6 @@ def test_login_senha_errada(server):
     finally:
         c.close()
 
-
 def test_login_totp_errado(server):
     c = Client(server["host"], server["port"])
     c.connect()
@@ -75,7 +65,6 @@ def test_login_totp_errado(server):
     finally:
         c.close()
 
-
 def test_tamper_ciphertext_detectado(server):
     c = Client(server["host"], server["port"])
     c.connect()
@@ -85,13 +74,11 @@ def test_tamper_ciphertext_detectado(server):
         c.add_block(b"conteudo original")
         c.tamper(1, "ciphertext")
         reply = c.list_chain()
-        # hash do bloco não foi recalculado pelo TAMPER -> a chain fica inválida (hash do bloco não bate).
         assert reply["chain_ok"] is False
         decoded = c.decrypt_mine(reply["blocks"])
         assert "error" in decoded[1]
     finally:
         c.close()
-
 
 def test_tamper_prev_hash_detectado(server):
     c = Client(server["host"], server["port"])

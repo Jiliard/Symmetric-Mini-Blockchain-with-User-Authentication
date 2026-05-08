@@ -1,10 +1,4 @@
-"""Estrutura de bloco, cálculo de hash e validação da cadeia.
-
-O servidor trata `iv` e `payload` como bytes opacos — ele não tenta decifrar.
-"""
-
 from __future__ import annotations
-
 import hashlib
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -13,10 +7,8 @@ GENESIS_OWNER = "system"
 GENESIS_PAYLOAD = b"genesis"
 GENESIS_PREV_HASH = b"\x00" * 32
 
-
 class ChainError(Exception):
     pass
-
 
 @dataclass
 class Block:
@@ -50,7 +42,6 @@ class Block:
             hash=base64.b64decode(d["hash"]),
         )
 
-
 def _compute_hash(index: int, timestamp: str, owner: str, iv: bytes, payload: bytes, prev_hash: bytes) -> bytes:
     h = hashlib.sha256()
     h.update(index.to_bytes(8, "big"))
@@ -65,24 +56,19 @@ def _compute_hash(index: int, timestamp: str, owner: str, iv: bytes, payload: by
     h.update(prev_hash)
     return h.digest()
 
-
 def make_genesis() -> Block:
     ts = datetime.now(UTC).isoformat()
-    # Genesis não é cifrado (owner=system); usa IV de 12 zeros só como marcador.
     iv = b"\x00" * 12
     prev_hash = GENESIS_PREV_HASH
     h = _compute_hash(0, ts, GENESIS_OWNER, iv, GENESIS_PAYLOAD, prev_hash)
     return Block(0, ts, GENESIS_OWNER, iv, GENESIS_PAYLOAD, prev_hash, h)
-
 
 def make_block(index: int, owner: str, iv: bytes, payload: bytes, prev_hash: bytes) -> Block:
     ts = datetime.now(UTC).isoformat()
     h = _compute_hash(index, ts, owner, iv, payload, prev_hash)
     return Block(index, ts, owner, iv, payload, prev_hash, h)
 
-
 def validate_chain(blocks: list[Block]) -> None:
-    """Revalida ordem, prev_hash e hash de cada bloco. Levanta ChainError no primeiro problema."""
     if not blocks:
         raise ChainError("cadeia vazia (sem genesis)")
     for i, b in enumerate(blocks):

@@ -1,28 +1,9 @@
-"""Menu interativo do cliente."""
-
 from __future__ import annotations
-
 import argparse
 import getpass
 import sys
-
 from client.session import Client, ClientError
 from common.constants import HOST, PORT
-
-
-MENU = """
-=== Mini-Blockchain ===
-1) Cadastrar novo usuario
-2) Login
-3) Adicionar bloco (requer login)
-4) Listar / validar cadeia
-5) Ler meus blocos (decifra apenas os meus)
-6) Adulterar bloco (teste de integridade)
-7) Mostrar log de acesso (requer login)
-8) Logout
-0) Sair
-"""
-
 
 def _read(prompt: str) -> str:
     sys.stdout.write(prompt)
@@ -32,12 +13,10 @@ def _read(prompt: str) -> str:
         raise EOFError
     return line.rstrip("\n")
 
-
 def _read_password(prompt: str) -> str:
     if sys.stdin.isatty():
         return getpass.getpass(prompt)
     return _read(prompt)
-
 
 def do_register(client: Client) -> None:
     username = _read("novo username: ").strip()
@@ -52,7 +31,6 @@ def do_register(client: Client) -> None:
     print(f"otpauth URI: {uri}")
     print("Guarde o segredo — use-o no Google Authenticator ou em `python -m client.totp_helper <segredo>`.")
 
-
 def do_login(client: Client) -> None:
     username = _read("username: ").strip()
     password = _read_password("senha: ")
@@ -60,12 +38,10 @@ def do_login(client: Client) -> None:
     sess = client.login(username, password, code)
     print(f"login ok: {sess.username}")
 
-
 def do_add(client: Client) -> None:
     data = _read("dados do bloco: ")
     reply = client.add_block(data.encode("utf-8"))
     print(f"bloco #{reply['index']} adicionado.")
-
 
 def do_list(client: Client) -> None:
     reply = client.list_chain()
@@ -75,7 +51,6 @@ def do_list(client: Client) -> None:
         print(f"!! CADEIA INVALIDA: {reply['chain_error']}")
     for b in blocks:
         print(f"  [{b['index']}] owner={b['owner']} ts={b['timestamp']} hash={b['hash'][:16]}...")
-
 
 def do_read_mine(client: Client) -> None:
     reply = client.list_chain()
@@ -90,18 +65,15 @@ def do_read_mine(client: Client) -> None:
         else:
             print(f"  [{entry['index']}] ({entry['owner']}) -- {entry.get('note', 'nao decifravel')}")
 
-
 def do_tamper(client: Client) -> None:
     idx_s = _read("indice do bloco (>=1): ").strip()
     mode = _read("modo (ciphertext|prev_hash): ").strip()
     reply = client.tamper(int(idx_s), mode)
     print(f"adulterado: indice={reply['index']} modo={reply['mode']}")
 
-
 def do_logs(client: Client) -> None:
     for line in client.logs(100):
         print(line)
-
 
 ACTIONS = {
     "1": do_register,
@@ -113,13 +85,11 @@ ACTIONS = {
     "7": do_logs,
 }
 
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Cliente da mini-blockchain")
     parser.add_argument("--host", default=HOST)
     parser.add_argument("--port", type=int, default=PORT)
     args = parser.parse_args()
-
     client = Client(args.host, args.port)
     client.connect()
     print(f"[cliente] conectado em {args.host}:{args.port}")
@@ -149,7 +119,6 @@ def main() -> None:
     finally:
         client.logout()
         client.close()
-
 
 if __name__ == "__main__":
     main()
