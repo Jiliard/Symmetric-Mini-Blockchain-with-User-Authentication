@@ -1,3 +1,5 @@
+# Feito por Eduardo Boçon e Jiliard Peifer
+
 HOST = "127.0.0.1"
 PORT = 9099
 PBKDF2_ITERATIONS = 300_000

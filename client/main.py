@@ -1,3 +1,5 @@
+# Feito por Eduardo Boçon e Jiliard Peifer
+
 from __future__ import annotations
 import argparse
 import getpass

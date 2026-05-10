@@ -1,3 +1,5 @@
+# Feito por Eduardo Boçon e Jiliard Peifer
+
 from __future__ import annotations
 import hashlib
 from dataclasses import asdict, dataclass

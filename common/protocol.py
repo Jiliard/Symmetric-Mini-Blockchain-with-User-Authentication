@@ -1,3 +1,5 @@
+# Feito por Eduardo Boçon e Jiliard Peifer
+
 import base64
 import json
 import socket
