@@ -12,6 +12,8 @@ from common.constants import (
     AES_KEY_SIZE,
     BLOCK_AAD_PREFIX,
     GCM_IV_SIZE,
+    IV_PBKDF2_ITERATIONS,
+    IV_SALT_SIZE,
     LOGIN_CONTEXT,
     PBKDF2_ITERATIONS,
     SALT_SIZE,
@@ -47,13 +49,26 @@ def challenge_response(auth_key: bytes, nonce: bytes) -> bytes:
 def _block_aad(owner: str, index: int) -> bytes:
     return BLOCK_AAD_PREFIX + b"|" + owner.encode("utf-8") + b"|" + str(index).encode("ascii")
 
-def encrypt_block(enc_key: bytes, owner: str, index: int, plaintext: bytes) -> tuple[bytes, bytes]:
-    """Cifra o payload do bloco. Retorna (iv, ciphertext+tag). IV novo a cada chamada."""
-    iv = os.urandom(GCM_IV_SIZE)
+def _derive_iv(enc_key: bytes, salt_iv: bytes) -> bytes:
+    """Deriva um IV de 12 bytes via PBKDF2, usando um salt aleatório por bloco."""
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=GCM_IV_SIZE,
+        salt=salt_iv,
+        iterations=IV_PBKDF2_ITERATIONS,
+    )
+    return kdf.derive(enc_key)
+
+def encrypt_block(enc_key: bytes, owner: str, index: int, plaintext: bytes) -> tuple[bytes, bytes, bytes]:
+    salt_iv = os.urandom(IV_SALT_SIZE)
+    iv = _derive_iv(enc_key, salt_iv)
     aesgcm = AESGCM(enc_key)
     ct = aesgcm.encrypt(iv, plaintext, _block_aad(owner, index))
-    return iv, ct
+    return salt_iv, iv, ct
 
-def decrypt_block(enc_key: bytes, owner: str, index: int, iv: bytes, ciphertext: bytes) -> bytes:
+def decrypt_block(enc_key: bytes, owner: str, index: int, salt_iv: bytes, iv: bytes, ciphertext: bytes) -> bytes:
+    expected_iv = _derive_iv(enc_key, salt_iv)
+    if expected_iv != iv:
+        raise ValueError("IV inconsistente com salt_iv (possivel adulteracao)")
     aesgcm = AESGCM(enc_key)
     return aesgcm.decrypt(iv, ciphertext, _block_aad(owner, index))

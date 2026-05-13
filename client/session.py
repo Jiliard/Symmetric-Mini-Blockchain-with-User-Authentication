@@ -118,11 +118,12 @@ class Client:
         # Precisamos do índice do próximo bloco para amarrar ao AAD. Buscamos via LIST.
         listing = self._call("LIST", {"session_token": self.session.token})
         next_index = len(listing["blocks"])
-        iv, payload = encrypt_block(self.session.enc_key, self.session.username, next_index, data)
+        salt_iv, iv, payload = encrypt_block(self.session.enc_key, self.session.username, next_index, data)
         return self._call(
             "ADDBLOCK",
             {
                 "session_token": self.session.token,
+                "salt_iv": b64e(salt_iv),
                 "iv": b64e(iv),
                 "payload": b64e(payload),
             },
@@ -149,6 +150,7 @@ class Client:
                         self.session.enc_key,
                         b["owner"],
                         int(b["index"]),
+                        b64d(b["salt_iv"]),
                         b64d(b["iv"]),
                         b64d(b["payload"]),
                     )

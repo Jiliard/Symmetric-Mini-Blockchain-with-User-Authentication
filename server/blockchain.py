@@ -17,7 +17,8 @@ class Block:
     index: int
     timestamp: str
     owner: str
-    iv: bytes
+    salt_iv: bytes  
+    iv: bytes        
     payload: bytes
     prev_hash: bytes
     hash: bytes
@@ -26,7 +27,7 @@ class Block:
         import base64
 
         d = asdict(self)
-        for field in ("iv", "payload", "prev_hash", "hash"):
+        for field in ("salt_iv", "iv", "payload", "prev_hash", "hash"):
             d[field] = base64.b64encode(d[field]).decode("ascii")
         return d
 
@@ -38,19 +39,22 @@ class Block:
             index=int(d["index"]),
             timestamp=d["timestamp"],
             owner=d["owner"],
+            salt_iv=base64.b64decode(d["salt_iv"]),
             iv=base64.b64decode(d["iv"]),
             payload=base64.b64decode(d["payload"]),
             prev_hash=base64.b64decode(d["prev_hash"]),
             hash=base64.b64decode(d["hash"]),
         )
 
-def _compute_hash(index: int, timestamp: str, owner: str, iv: bytes, payload: bytes, prev_hash: bytes) -> bytes:
+def _compute_hash(index: int, timestamp: str, owner: str, salt_iv: bytes, iv: bytes, payload: bytes, prev_hash: bytes) -> bytes:
     h = hashlib.sha256()
     h.update(index.to_bytes(8, "big"))
     h.update(timestamp.encode("utf-8"))
     h.update(b"\x00")
     h.update(owner.encode("utf-8"))
     h.update(b"\x00")
+    h.update(len(salt_iv).to_bytes(2, "big"))
+    h.update(salt_iv)
     h.update(len(iv).to_bytes(2, "big"))
     h.update(iv)
     h.update(len(payload).to_bytes(4, "big"))
@@ -60,15 +64,16 @@ def _compute_hash(index: int, timestamp: str, owner: str, iv: bytes, payload: by
 
 def make_genesis() -> Block:
     ts = datetime.now(UTC).isoformat()
+    salt_iv = b"\x00" * 16
     iv = b"\x00" * 12
     prev_hash = GENESIS_PREV_HASH
-    h = _compute_hash(0, ts, GENESIS_OWNER, iv, GENESIS_PAYLOAD, prev_hash)
-    return Block(0, ts, GENESIS_OWNER, iv, GENESIS_PAYLOAD, prev_hash, h)
+    h = _compute_hash(0, ts, GENESIS_OWNER, salt_iv, iv, GENESIS_PAYLOAD, prev_hash)
+    return Block(0, ts, GENESIS_OWNER, salt_iv, iv, GENESIS_PAYLOAD, prev_hash, h)
 
-def make_block(index: int, owner: str, iv: bytes, payload: bytes, prev_hash: bytes) -> Block:
+def make_block(index: int, owner: str, salt_iv: bytes, iv: bytes, payload: bytes, prev_hash: bytes) -> Block:
     ts = datetime.now(UTC).isoformat()
-    h = _compute_hash(index, ts, owner, iv, payload, prev_hash)
-    return Block(index, ts, owner, iv, payload, prev_hash, h)
+    h = _compute_hash(index, ts, owner, salt_iv, iv, payload, prev_hash)
+    return Block(index, ts, owner, salt_iv, iv, payload, prev_hash, h)
 
 def validate_chain(blocks: list[Block]) -> None:
     if not blocks:
@@ -79,6 +84,6 @@ def validate_chain(blocks: list[Block]) -> None:
         expected_prev = GENESIS_PREV_HASH if i == 0 else blocks[i - 1].hash
         if b.prev_hash != expected_prev:
             raise ChainError(f"prev_hash invalido no bloco {i}")
-        recomputed = _compute_hash(b.index, b.timestamp, b.owner, b.iv, b.payload, b.prev_hash)
+        recomputed = _compute_hash(b.index, b.timestamp, b.owner, b.salt_iv, b.iv, b.payload, b.prev_hash)
         if recomputed != b.hash:
             raise ChainError(f"hash do bloco {i} nao bate (conteudo adulterado)")

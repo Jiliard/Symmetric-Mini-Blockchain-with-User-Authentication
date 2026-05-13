@@ -141,6 +141,7 @@ def _session_user(state: ServerState, token: str) -> str:
 
 def handle_addblock(state: ServerState, sock, conn_id, data, peer):
     username = _session_user(state, data["session_token"])
+    salt_iv = b64d(data["salt_iv"])
     iv = b64d(data["iv"])
     payload = b64d(data["payload"])
     with state.lock:
@@ -149,6 +150,7 @@ def handle_addblock(state: ServerState, sock, conn_id, data, peer):
         block = make_block(
             index=prev.index + 1,
             owner=username,
+            salt_iv=salt_iv,
             iv=iv,
             payload=payload,
             prev_hash=prev.hash,
@@ -193,6 +195,7 @@ def handle_tamper(state: ServerState, sock, conn_id, data, peer):
                 index=target.index,
                 timestamp=target.timestamp,
                 owner=target.owner,
+                salt_iv=target.salt_iv,
                 iv=target.iv,
                 payload=bytes(flipped),
                 prev_hash=target.prev_hash,
@@ -205,6 +208,7 @@ def handle_tamper(state: ServerState, sock, conn_id, data, peer):
                 index=target.index,
                 timestamp=target.timestamp,
                 owner=target.owner,
+                salt_iv=target.salt_iv,
                 iv=target.iv,
                 payload=target.payload,
                 prev_hash=bytes(bad),
